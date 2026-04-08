@@ -74,20 +74,6 @@ LOCKOUT_DURATION_HOURS=24
 - `LOCKOUT_MAX_ATTEMPTS` -- number of failed attempts before an IP is locked out (default: 5)
 - `LOCKOUT_DURATION_HOURS` -- how long a locked out IP stays banned in hours (default: 24)
 
-### 5. Run
-
-```bash
-docker compose up --build -d
-```
-
-The portal is available at `http://localhost:8000`.
-
-To rebuild after config changes:
-
-```bash
-docker compose down && docker compose up --build -d
-```
-
 ### 5. Create a Dynamic Device Group in Entra ID (optional but recommended)
 
 This automatically assigns an Autopilot deployment profile to devices registered through the portal.
@@ -221,7 +207,7 @@ Response:
 ```json
 {
   "code": "SZ0XO9VF1O1H",
-  "oneliner": "irm https://ap.yourcompany.com/e/SZ0XO9VF1O1H | iex",
+  "oneliner": "irm ap.yourcompany.com/e/SZ0XO9VF1O1H | iex",
   "expires_at": "2026-04-14T15:48:00.046164"
 }
 ```
@@ -269,7 +255,7 @@ Response:
 curl https://ap.yourcompany.com/e/SZ0XO9VF1O1H
 ```
 
-Returns the PowerShell script as `text/plain`. Returns `404` if code not found, `410` if used or expired.
+Returns the PowerShell script as `text/plain`. Returns `404` for any invalid request (not found, used, or expired) — no distinction is made intentionally to avoid leaking code state.
 
 ### List security events
 
@@ -285,12 +271,12 @@ Response:
     "time": "2026-04-07T22:50:27.000000",
     "type": "failed_attempt",
     "ip": "213.195.83.230",
-    "detail": "Invalid code submitted (1/5 before lockout)"
+    "detail": "Invalid code submitted"
   }
 ]
 ```
 
-Event types: `failed_attempt`, `rate_limit`, `lockout`, `registration`, `code_generated`.
+Event types: `failed_attempt`, `rate_limit`, `lockout`, `registration`, `registration_failed`, `code_generated`, `code_revoked`, `unban`.
 
 ### Clear security events
 
@@ -374,10 +360,11 @@ Protect the admin UI and API endpoints with SSO so only authorised users can acc
 
 1. Go to **Cloudflare Zero Trust** > **Access** > **Applications**
 2. Click **Add an application** > **Self-hosted**
-3. Configure with three public hostnames, all on the same subdomain/domain:
+3. Configure with four public hostnames, all on the same subdomain/domain:
    - **Path:** `admin` (the admin UI)
    - **Path:** `api/codes` (code management API)
    - **Path:** `api/events` (security events API)
+   - **Path:** `api/bans` (banned IPs management API)
 4. Under **Access policies**, create a policy:
    - **Policy name:** `Allow IT`
    - **Action:** Allow
@@ -437,13 +424,13 @@ done
 ```
 
 Expected results:
-- First 4 requests: `404` (invalid code, passed through nginx burst allowance)
+- First 2 requests: `404` (invalid code, passed through nginx burst allowance — rate=2r/m burst=1)
 - Remaining requests: `429` (blocked by nginx rate limit)
-- After 5 failed attempts reaching the app: IP locked out for 15 minutes
+- After 5 failed attempts reaching the app: IP locked out for 24 hours
 - Slack: one failed attempt alert + one lockout alert (throttled)
 - Admin UI: all events visible in Security Events panel
 
-To reset the lockout during testing, restart the container (`docker compose restart`). The rate limit and lockout counters are in-memory and reset on restart. Security events persist in the database.
+To reset the lockout during testing, unban the IP via the admin UI or delete the `failed_attempts` rows from the database — bans are persisted in SQLite and survive restarts. Only the in-memory rate limit counter resets on restart.
 
 ### Testing from a VM
 
