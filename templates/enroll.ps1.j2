@@ -1,0 +1,100 @@
+# Autopilot Enrollment
+# Code: {{ code }} | {{ label }} | Expires: {{ expires_at }}
+
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+Write-Host "Installing dependencies..."
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+Install-Script -Name Get-WindowsAutoPilotInfo -Force -Scope CurrentUser | Out-Null
+
+Write-Host "Collecting hardware hash..."
+$tmpFile = "$env:TEMP\hash.csv"
+Get-WindowsAutoPilotInfo -OutputFile $tmpFile
+
+if (-not (Test-Path $tmpFile)) {
+    Write-Host "ERROR: Failed to collect hardware hash. Make sure you're running as Administrator."
+    exit 1
+}
+
+$device = Import-Csv $tmpFile
+
+if (-not $device.'Hardware Hash') {
+    Write-Host "ERROR: Hardware hash is empty. This device may not support Autopilot."
+    exit 1
+}
+
+$model = $device.'Device Model'
+if (-not $model) { $model = (Get-WmiObject Win32_ComputerSystem).Model }
+if (-not $model) { $model = "Unknown" }
+
+Write-Host ""
+Write-Host "Device details:"
+Write-Host "  Serial: $($device.'Device Serial Number')"
+Write-Host "  Model:  $model"
+Write-Host "  Hash:   $($device.'Hardware Hash'.Substring(0, [Math]::Min(20, $device.'Hardware Hash'.Length)))..."
+Write-Host ""
+
+$body = @{
+    hardwareHash = $device.'Hardware Hash'
+    serial       = $device.'Device Serial Number'
+    model        = $model
+} | ConvertTo-Json
+
+Write-Host "Registering with Intune (this may take a few minutes)..."
+try {
+    $result = Invoke-RestMethod `
+        -Uri "{{ backend_url }}/api/e" `
+        -Method POST `
+        -Headers @{ Authorization = "Bearer {{ code }}" } `
+        -Body $body `
+        -ContentType "application/json" `
+        -TimeoutSec 360
+} catch {
+    Write-Host "ERROR: Registration failed. Contact IT and quote code {{ code }}" -ForegroundColor Red
+    Write-Host "Cleaning up..."
+    if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force }
+    return
+}
+
+if ($result) {
+    Write-Host ""
+    if ($result.autopilot -eq "confirmed") {
+        Write-Host "SUCCESS - Device confirmed in Autopilot." -ForegroundColor Green
+    } else {
+        Write-Host "SUCCESS - Device submitted to Autopilot." -ForegroundColor Yellow
+    }
+    Write-Host "Serial: $($result.serial)"
+    Write-Host ""
+
+    # Detect if running at OOBE or on a fully installed system
+    $isOOBE = (Get-Process -Name "WWAHost" -ErrorAction SilentlyContinue) -or `
+              ((Get-ItemProperty -Path "HKLM:\SYSTEM\Setup" -Name "OOBEInProgress" -ErrorAction SilentlyContinue).OOBEInProgress -eq 1)
+
+    if ($isOOBE) {
+        Write-Host "You are at OOBE. The device needs to restart for Autopilot to activate."
+        $choice = Read-Host "Restart now? (Y/N)"
+        if ($choice -eq 'Y' -or $choice -eq 'y') {
+            shutdown /r /t 5
+        } else {
+            Write-Host "Restart manually when ready: type 'shutdown /r /t 0' or power cycle the device."
+        }
+    } else {
+        Write-Host "To begin Autopilot enrollment, this device needs to be reset."
+        $choice = Read-Host "Reset now? (Y/N)"
+        if ($choice -eq 'Y' -or $choice -eq 'y') {
+            Write-Host "Resetting in 10 seconds... (Ctrl+C to cancel)"
+            Start-Sleep -Seconds 10
+            systemreset --factoryreset
+        } else {
+            Write-Host "You can reset later: Settings > System > Recovery > Reset this PC"
+        }
+    }
+}
+
+# Cleanup: remove temp files and clear command history
+Write-Host "Cleaning up..."
+if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force }
+$historyPath = (Get-PSReadlineOption).HistorySavePath
+if ($historyPath -and (Test-Path $historyPath)) { Remove-Item $historyPath -Force }
+[System.GC]::Collect()

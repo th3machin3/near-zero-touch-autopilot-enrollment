@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlalchemy
+jinja2
+msal
+requests
+python-dotenv
+aiofiles
