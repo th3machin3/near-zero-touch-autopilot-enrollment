@@ -332,7 +332,7 @@ Not possible. SQLAlchemy uses parameterised queries — all user input goes thro
 
 ### Lockout persistence
 
-The active ban list is stored in-memory (Python dict). A container restart clears all active bans — this is by design for a POC. Security events (including lockout records) are persisted to SQLite and survive restarts, so you retain the audit trail even if the bans themselves reset. For production, consider persisting bans to the database or an external store like Redis.
+The active ban list is stored in SQLite (`failed_attempts` table) and survives container restarts. Bans persist until they naturally expire (after `LOCKOUT_DURATION_HOURS`) or are manually cleared via the admin UI. The only in-memory state is the short-lived rate limit counter (`10 req/min` sliding window), which resets on restart — this is acceptable since it only affects burst limiting, not lockouts.
 
 ### PowerShell script security
 
