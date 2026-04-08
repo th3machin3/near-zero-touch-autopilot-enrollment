@@ -178,7 +178,7 @@ Admin endpoints are protected by Cloudflare Access SSO. Public endpoints (`/e/{c
 | `/api/codes/generate` | POST | SSO | Generate a new enrollment code |
 | `/api/codes` | GET | SSO | List all enrollment codes |
 | `/api/codes/{code}` | DELETE | SSO | Revoke a pending code |
-| `/api/e` | POST | Bearer token | Device registration (called by enrollment script) |
+| `/api/e` | POST | Bearer token | Device registration (internal — called automatically by the enrollment script) |
 | `/api/events` | GET | SSO | List security events |
 | `/api/events` | DELETE | SSO | Clear all security events |
 | `/api/bans` | GET | SSO | List currently banned IPs |
@@ -270,20 +270,6 @@ curl https://ap.yourcompany.com/e/SZ0XO9VF1O1H
 ```
 
 Returns the PowerShell script as `text/plain`. Returns `404` if code not found, `410` if used or expired.
-
-### Register a device (called by the PowerShell script)
-
-```bash
-curl -X POST https://ap.yourcompany.com/api/e \
-  -H "Authorization: Bearer SZ0XO9VF1O1H" \
-  -H "Content-Type: application/json" \
-  -d '{"hardwareHash": "...", "serial": "ABC123", "model": "Dell XPS 15"}'
-```
-
-Response:
-```json
-{"status": "ok", "serial": "ABC123", "autopilot": "confirmed"}
-```
 
 ### List security events
 
