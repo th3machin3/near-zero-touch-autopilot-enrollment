@@ -2,7 +2,7 @@
 
 > **This is a proof of concept (POC).** It is functional and security-hardened for small-scale use, but see [Production Recommendations](#production-recommendations) before deploying at scale.
 
-A self-service portal for registering Windows devices into Microsoft Intune Autopilot. IT generates one-time enrollment codes, sends users a PowerShell one-liner, and the device registers itself via the Microsoft Graph API.
+A self-service portal for registering Windows devices into Microsoft Intune Autopilot. IT generates one-time enrollment codes that are included in the user's onboarding welcome email, and the device registers itself via the Microsoft Graph API.
 
 ## Prerequisites
 
@@ -165,8 +165,8 @@ Admin endpoints are protected by Cloudflare Access SSO. Public endpoints (`/e/{c
 | `/api/codes` | GET | SSO | List all enrollment codes |
 | `/api/codes/{code}` | DELETE | SSO | Revoke a pending code |
 | `/api/e` | POST | Bearer token | Device registration (internal — called automatically by the enrollment script) |
-| `/api/events` | GET | SSO | List security events |
-| `/api/events` | DELETE | SSO | Clear all security events |
+| `/api/events` | GET | SSO | List audit trail events |
+| `/api/events` | DELETE | SSO | Clear audit trail |
 | `/api/bans` | GET | SSO | List currently banned IPs |
 | `/api/bans/{ip}` | DELETE | SSO | Unban an IP |
 | `/e/{code}` | GET | Public | Serve PowerShell enrollment script |
@@ -257,7 +257,7 @@ curl https://ap.yourcompany.com/e/SZ0XO9VF1O1H
 
 Returns the PowerShell script as `text/plain`. Returns `404` for any invalid request (not found, used, or expired) — no distinction is made intentionally to avoid leaking code state.
 
-### List security events
+### List audit trail events
 
 ```bash
 curl https://ap.yourcompany.com/api/events \
@@ -278,7 +278,7 @@ Response:
 
 Event types: `failed_attempt`, `rate_limit`, `lockout`, `registration`, `registration_failed`, `code_generated`, `code_revoked`, `unban`.
 
-### Clear security events
+### Clear audit trail
 
 ```bash
 curl -X DELETE https://ap.yourcompany.com/api/events \
@@ -363,7 +363,7 @@ Protect the admin UI and API endpoints with SSO so only authorised users can acc
 3. Configure with four public hostnames, all on the same subdomain/domain:
    - **Path:** `admin` (the admin UI)
    - **Path:** `api/codes` (code management API)
-   - **Path:** `api/events` (security events API)
+   - **Path:** `api/events` (audit trail API)
    - **Path:** `api/bans` (banned IPs management API)
 4. Under **Access policies**, create a policy:
    - **Policy name:** `Allow IT`
@@ -390,7 +390,7 @@ On the free plan, the built-in nginx rate limiting and app-level lockout provide
 
 ### Slack alerts
 
-When `SLACK_WEBHOOK_URL` is configured, the app sends real-time alerts to Slack for security events. Alerts are throttled to avoid spam.
+When `SLACK_WEBHOOK_URL` is configured, the app sends real-time alerts to Slack for audit trail events. Alerts are throttled to avoid spam.
 
 | Event | Slack behaviour |
 |---|---|
@@ -400,7 +400,7 @@ When `SLACK_WEBHOOK_URL` is configured, the app sends real-time alerts to Slack 
 | Device registration | Always alerts |
 | Code generated | Always alerts |
 
-All events are visible in the admin UI's **Security Events** panel regardless of Slack throttling.
+All events are visible in the admin UI's **Audit Trail** panel regardless of Slack throttling.
 
 To set up Slack webhooks: Slack > Settings > Manage apps > Incoming Webhooks > Create new webhook > copy the URL into `SLACK_WEBHOOK_URL` in `.env`.
 
@@ -428,7 +428,7 @@ Expected results:
 - Remaining requests: `429` (blocked by nginx rate limit)
 - After 5 failed attempts reaching the app: IP locked out for 24 hours
 - Slack: one failed attempt alert + one lockout alert (throttled)
-- Admin UI: all events visible in Security Events panel
+- Admin UI: all events visible in Audit Trail panel
 
 To reset the lockout during testing, unban the IP via the admin UI or delete the `failed_attempts` rows from the database — bans are persisted in SQLite and survive restarts. Only the in-memory rate limit counter resets on restart.
 
@@ -462,7 +462,7 @@ Never commit `.env` to version control. The `.gitignore` already excludes it.
 SQLite is sufficient for low-volume use (a few codes per day). For higher availability:
 
 - Use **PostgreSQL** in a separate container or a managed service (AWS RDS, Azure Database, Supabase)
-- Implement regular backups -- the data in this app is not critical (Intune is the source of truth for enrolled devices), but code history and security events are useful for auditing
+- Implement regular backups -- the data in this app is not critical (Intune is the source of truth for enrolled devices), but code history and audit trail events are useful for auditing
 
 ### Hosting
 
