@@ -127,6 +127,8 @@ docker compose down && docker compose up --build -d
 4. Copy the one-liner and include it in the user's welcome email
 5. The codes table auto-refreshes every 30 seconds showing status updates
 
+![Admin portal showing code generation and enrollment codes table](docs/admin_code_gen.jpg)
+
 ### End User (New Device at OOBE)
 
 1. Boot the new device
@@ -328,6 +330,8 @@ These must remain open for devices to reach them, but are hardened with multiple
 
 - **Rate limiting** -- two layers: nginx enforces 2 requests/min per IP (with burst of 1, meaning max 2 requests at once then 1 every 30 seconds), and the application enforces 10 requests/min per IP as a fallback. A legitimate user only needs 1 request to download the script and 1 to register — 2/min is generous for real use while tight against scanners. Uses the `cf-connecting-ip` header behind Cloudflare so attackers can't hide behind proxies. Exceeding either limit returns `429 Too Many Requests`.
 - **Failed attempt lockout** -- configurable via `LOCKOUT_MAX_ATTEMPTS` (default: 5) and `LOCKOUT_DURATION_HOURS` (default: 24). After the max attempts, the IP is locked out for the configured duration. Legitimate users copy-paste codes from the portal and never hit this. Brute-force scanners will. Banned IPs can be manually unbanned from the admin UI or via `DELETE /api/bans/{ip}`.
+
+![Admin UI showing a banned IP after 5 failed attempts with audit trail](docs/admin_ip_block.jpg)
 - **Input validation** -- codes must be exactly 12 alphanumeric characters. Malformed requests are rejected before touching the database and count as failed attempts.
 - **Cryptographic code generation** -- codes are generated using Python's `secrets` module (OS-level cryptographic randomness). Unlike `random`, the output is unpredictable even if an attacker observes previously generated codes.
 - **Code entropy** -- 12-character codes from a 36-character alphabet (A-Z, 0-9) give ~4.7 x 10^18 possible combinations. At 10 attempts per minute, brute-forcing would take ~900 billion years.
@@ -399,6 +403,8 @@ Protect the admin UI and API endpoints with SSO so only authorised users can acc
 6. Save the application
 
 Users accessing `/admin` will be redirected to Google SSO. Devices hitting `/e/*` and `/api/e` bypass Access entirely.
+
+![Cloudflare Access SSO login page protecting the admin portal](docs/cf_access_admin.jpg)
 
 #### 3. Additional Cloudflare settings
 
