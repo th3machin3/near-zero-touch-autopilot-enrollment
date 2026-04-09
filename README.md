@@ -119,10 +119,11 @@ docker compose down && docker compose up --build -d
 
 1. Boot the new device
 2. Select language/region
-3. **Connect to Wi-Fi** (OOBE requires this on Windows 11)
-4. Press **Shift+F10** to open Command Prompt
-5. Type `powershell` and press Enter
-6. Type the one-liner provided by IT and press Enter — no `https://` needed, Cloudflare automatically redirects to HTTPS
+3. Press **Shift+F10** to open Command Prompt
+4. Type `powershell` and press Enter
+5. Type the one-liner provided by IT and press Enter — no `https://` needed, Cloudflare automatically redirects to HTTPS
+
+> **No ethernet?** If the device is Wi-Fi only, before running the one-liner press **Shift+F10**, type `start ms-settings:network-wifi` and press Enter, connect to your network, close Settings, then continue from step 4.
 7. The script installs dependencies, collects the hardware hash, and registers the device
 8. The backend submits the device to Microsoft Graph and returns immediately once accepted
 9. The script waits 5 minutes for Microsoft to finish processing the import, showing a countdown
