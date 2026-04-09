@@ -275,9 +275,9 @@ def register(body: RegisterRequest, request: Request, authorization: str | None 
         c.model = body.model or "Unknown"
         db.commit()
 
-        logger.info(f"Device {body.serial} registered and confirmed in Autopilot")
-        add_security_event("registration", get_client_ip(request), f"Device registered — serial: {body.serial}, model: {body.model or 'Unknown'}")
-        return {"status": "ok", "serial": body.serial, "autopilot": "confirmed"}
+        logger.info(f"Device {body.serial} submitted to Autopilot — Microsoft will process asynchronously")
+        add_security_event("registration", get_client_ip(request), f"Device submitted — serial: {body.serial}, model: {body.model or 'Unknown'}")
+        return {"status": "ok", "serial": body.serial, "autopilot": "submitted"}
     finally:
         db.close()
 

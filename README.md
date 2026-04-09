@@ -124,8 +124,8 @@ docker compose down && docker compose up --build -d
 5. Type `powershell` and press Enter
 6. Type the one-liner provided by IT and press Enter — no `https://` needed, Cloudflare automatically redirects to HTTPS
 7. The script installs dependencies, collects the hardware hash, and registers the device
-8. The backend submits the device to Microsoft Graph and polls every 10 seconds for up to 5 minutes until the import is confirmed (depending on how quickly the Graph API processes it)
-9. Once confirmed, the script shows **"Device confirmed in Autopilot"** in green
+8. The backend submits the device to Microsoft Graph and returns immediately once accepted
+9. The script waits 5 minutes for Microsoft to finish processing the import, showing a countdown
 10. When prompted, type **Y** to restart the device
 11. On reboot, OOBE detects the device is registered in Autopilot and shows your company's enrollment flow
 
@@ -133,17 +133,14 @@ docker compose down && docker compose up --build -d
 
 ### Autopilot import verification
 
-The backend does not return success until Microsoft confirms the device has been imported into Autopilot:
+The backend submits the device to Microsoft Graph and returns immediately once Microsoft accepts the request. Microsoft processes the import asynchronously on their end, typically within a few minutes.
 
 1. Device data is submitted to Microsoft Graph API
-2. The backend polls the import status every 10 seconds (well within Graph API rate limits)
-3. If Microsoft confirms the import as **complete**, the backend returns success and the code is marked as used
-4. If the import **fails**, the backend returns the error from Microsoft and the code remains unused (can be retried)
-5. If the import **times out** after 5 minutes, an error is returned and the code remains unused
+2. If Microsoft accepts the import, the backend returns success and the code is marked as used
+3. If Microsoft rejects the import, the backend returns the error and the code remains unused (can be retried)
+4. The enrollment script then waits 5 minutes locally to give Microsoft time to finish processing before prompting for restart
 
-This ensures that when the script says "confirmed", the device is genuinely in Autopilot and the OOBE will work.
-
-**Safe to retry:** If a previous attempt timed out, re-running the script with the same code is safe. The code remains unused until a successful confirmation. If the device was already submitted to Microsoft in a previous attempt, the API typically recognises the duplicate hardware hash and does not create a second entry, though Microsoft does not explicitly guarantee idempotency on this endpoint.
+**Safe to retry:** If a submission was accepted but something went wrong before the device restarted, generate a new code — the original code is marked used on successful submission. If the device was already submitted in a previous attempt, Microsoft typically recognises the duplicate hardware hash and does not create a second entry, though idempotency is not explicitly guaranteed.
 
 ### Already Installed Device
 

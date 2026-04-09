@@ -59,12 +59,16 @@ try {
 
 if ($result) {
     Write-Host ""
-    if ($result.autopilot -eq "confirmed") {
-        Write-Host "SUCCESS - Device confirmed in Autopilot." -ForegroundColor Green
-    } else {
-        Write-Host "SUCCESS - Device submitted to Autopilot." -ForegroundColor Yellow
-    }
+    Write-Host "SUCCESS - Device submitted to Autopilot." -ForegroundColor Green
     Write-Host "Serial: $($result.serial)"
+    Write-Host ""
+    Write-Host "Waiting 5 minutes for Microsoft to process the registration..." -ForegroundColor Yellow
+    for ($i = 300; $i -gt 0; $i -= 10) {
+        Write-Host "  $i seconds remaining..." -NoNewline
+        Start-Sleep -Seconds 10
+        Write-Host "`r                          `r" -NoNewline
+    }
+    Write-Host "Done. Proceeding." -ForegroundColor Green
     Write-Host ""
 
     # Detect if running at OOBE or on a fully installed system
