@@ -138,7 +138,9 @@ The backend submits the device to Microsoft Graph and returns immediately once M
 1. Device data is submitted to Microsoft Graph API
 2. If Microsoft accepts the import, the backend returns success and the code is marked as used
 3. If Microsoft rejects the import, the backend returns the error and the code remains unused (can be retried)
-4. The enrollment script then waits 5 minutes locally to give Microsoft time to finish processing before prompting for restart
+4. The enrollment script then waits 5 minutes locally before prompting for restart
+
+The backend does not poll for confirmation because Cloudflare's free plan enforces a 100-second proxy timeout — Microsoft's processing typically takes 70–120 seconds, which would cause the connection to be dropped before a response is sent. Polling is handled client-side instead. Upgrading to Cloudflare Pro or above would allow increasing this timeout if server-side confirmation is needed.
 
 **Safe to retry:** If a submission was accepted but something went wrong before the device restarted, generate a new code — the original code is marked used on successful submission. If the device was already submitted in a previous attempt, Microsoft typically recognises the duplicate hardware hash and does not create a second entry, though idempotency is not explicitly guaranteed.
 
