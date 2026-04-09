@@ -63,11 +63,14 @@ if ($result) {
     Write-Host "Serial: $($result.serial)"
     Write-Host ""
     Write-Host "Waiting 5 minutes for Microsoft to process the registration..." -ForegroundColor Yellow
-    for ($i = 300; $i -gt 0; $i -= 10) {
-        Write-Host "  $i seconds remaining..." -NoNewline
-        Start-Sleep -Seconds 10
-        Write-Host "`r                          `r" -NoNewline
+    $total = 300
+    for ($elapsed = 0; $elapsed -lt $total; $elapsed++) {
+        $pct = [int](($elapsed / $total) * 100)
+        $remaining = $total - $elapsed
+        Write-Progress -Activity "Autopilot sync" -Status "$remaining seconds remaining" -PercentComplete $pct
+        Start-Sleep -Seconds 1
     }
+    Write-Progress -Activity "Autopilot sync" -Completed
     Write-Host "Done. Proceeding." -ForegroundColor Green
     Write-Host ""
 
