@@ -497,3 +497,7 @@ autopilot-enrollment/
 ├── docker-compose.yml
 └── requirements.txt
 ```
+
+## License
+
+MIT — free to use, modify, and distribute. See [LICENSE](LICENSE) for details.
