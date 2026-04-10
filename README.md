@@ -179,27 +179,29 @@ For scripts and CI pipelines that need to call admin endpoints without a browser
 2. Click **Create Service Token**
 3. Name it (e.g. `autopilot-automation`)
 4. Copy the **Client ID** and **Client Secret** — you won't see the secret again
-5. In your Cloudflare Access application policy, add a rule:
+5. Go to **Access** > **Applications** > open your autopilot application > **Policies**
+6. Click **Add a policy**:
+   - **Policy name:** `Service Token`
    - **Action:** Service Auth
-   - **Include:** Service Token — select `autopilot-automation`
+   - **Include rule:** Service Token — select `autopilot-automation`
+7. Save the policy
 
-Then pass the headers in your API calls:
+All admin endpoint calls must include the service token headers:
+
+```bash
+-H "CF-Access-Client-Id: your-client-id" \
+-H "CF-Access-Client-Secret: your-client-secret"
+```
+
+Cloudflare validates the token at the edge — no changes needed in the app.
+
+### Generate a code
 
 ```bash
 curl -X POST https://ap.yourcompany.com/api/codes/generate \
   -H "CF-Access-Client-Id: your-client-id" \
   -H "CF-Access-Client-Secret: your-client-secret" \
   -H "Content-Type: application/json" \
-  -d '{"label": "Automated - Batch 1"}'
-```
-
-Cloudflare validates the service token at the edge — no changes needed in the app.
-
-### Generate a code
-
-```bash
-curl -X POST https://ap.yourcompany.com/api/codes/generate \
-    -H "Content-Type: application/json" \
   -d '{"label": "John Smith - Dell XPS"}'
 ```
 
@@ -216,7 +218,8 @@ Response:
 
 ```bash
 curl https://ap.yourcompany.com/api/codes \
-  
+  -H "CF-Access-Client-Id: your-client-id" \
+  -H "CF-Access-Client-Secret: your-client-secret"
 ```
 
 Response:
@@ -241,7 +244,8 @@ Status values: `pending` (active, unused), `used` (device registered), `expired`
 
 ```bash
 curl -X DELETE https://ap.yourcompany.com/api/codes/SZ0XO9VF1O1H \
-  
+  -H "CF-Access-Client-Id: your-client-id" \
+  -H "CF-Access-Client-Secret: your-client-secret"
 ```
 
 Response:
@@ -261,7 +265,8 @@ Returns the PowerShell script as `text/plain`. Returns `404` for any invalid req
 
 ```bash
 curl https://ap.yourcompany.com/api/events \
-  
+  -H "CF-Access-Client-Id: your-client-id" \
+  -H "CF-Access-Client-Secret: your-client-secret"
 ```
 
 Response:
@@ -282,7 +287,8 @@ Event types: `failed_attempt`, `rate_limit`, `lockout`, `registration`, `registr
 
 ```bash
 curl -X DELETE https://ap.yourcompany.com/api/events \
-  
+  -H "CF-Access-Client-Id: your-client-id" \
+  -H "CF-Access-Client-Secret: your-client-secret"
 ```
 
 Response:
