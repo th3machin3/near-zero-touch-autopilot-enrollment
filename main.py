@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import secrets
@@ -7,11 +8,13 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+import jwt
 import requests as http_requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi import Depends, FastAPI, HTTPException, Header, Request
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from jwt.algorithms import RSAAlgorithm
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 
@@ -27,6 +30,8 @@ logger = logging.getLogger("autopilot")
 BACKEND_URL = os.getenv("BACKEND_URL", "https://enroll.yourcompany.com")
 TOKEN_EXPIRY_DAYS = int(os.getenv("TOKEN_EXPIRY_DAYS", "7"))
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+CF_TEAM_DOMAIN = os.getenv("CF_TEAM_DOMAIN", "")
+CF_ACCESS_AUD = os.getenv("CF_ACCESS_AUD", "")
 
 app = FastAPI()
 
@@ -128,7 +133,39 @@ def generate_code() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(12))
 
 
-## Admin endpoints are protected by Cloudflare Access SSO — no API key needed
+_cf_jwks: dict = {}
+_cf_jwks_fetched_at: float = 0
+
+
+def _get_cf_public_key(kid: str, *, force_refresh: bool = False):
+    global _cf_jwks, _cf_jwks_fetched_at
+    if force_refresh or not _cf_jwks or time.time() - _cf_jwks_fetched_at > 3600:
+        resp = http_requests.get(
+            f"https://{CF_TEAM_DOMAIN}/cdn-cgi/access/certs", timeout=5
+        )
+        resp.raise_for_status()
+        _cf_jwks = {k["kid"]: k for k in resp.json().get("keys", [])}
+        _cf_jwks_fetched_at = time.time()
+    raw = _cf_jwks.get(kid)
+    return RSAAlgorithm.from_jwk(json.dumps(raw)) if raw else None
+
+
+def verify_admin(cf_access_jwt_assertion: str | None = Header(None)):
+    if not CF_TEAM_DOMAIN or not CF_ACCESS_AUD:
+        raise HTTPException(status_code=500, detail="Set CF_TEAM_DOMAIN and CF_ACCESS_AUD to enable admin access")
+    if not cf_access_jwt_assertion:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        header = jwt.get_unverified_header(cf_access_jwt_assertion)
+        kid = header.get("kid", "")
+        key = _get_cf_public_key(kid) or _get_cf_public_key(kid, force_refresh=True)
+        if not key:
+            raise ValueError("Unknown signing key")
+        jwt.decode(cf_access_jwt_assertion, key, algorithms=["RS256"], audience=CF_ACCESS_AUD)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 def get_status(code: Code) -> str:
@@ -146,7 +183,7 @@ class GenerateRequest(BaseModel):
     label: str
 
 
-@app.post("/api/codes/generate")
+@app.post("/api/codes/generate", dependencies=[Depends(verify_admin)])
 def generate(body: GenerateRequest, request: Request):
     db = SessionLocal()
     try:
@@ -176,7 +213,7 @@ def generate(body: GenerateRequest, request: Request):
         db.close()
 
 
-@app.get("/api/codes")
+@app.get("/api/codes", dependencies=[Depends(verify_admin)])
 def list_codes():
     db = SessionLocal()
     try:
@@ -198,7 +235,7 @@ def list_codes():
         db.close()
 
 
-@app.delete("/api/codes/{code}")
+@app.delete("/api/codes/{code}", dependencies=[Depends(verify_admin)])
 def delete_code(code: str, request: Request):
     db = SessionLocal()
     try:
@@ -282,7 +319,7 @@ def register(body: RegisterRequest, request: Request, authorization: str | None 
         db.close()
 
 
-@app.get("/api/bans")
+@app.get("/api/bans", dependencies=[Depends(verify_admin)])
 def get_bans():
     now = time.time()
     cutoff = now - FAILED_LOCKOUT
@@ -301,7 +338,7 @@ def get_bans():
         db.close()
 
 
-@app.delete("/api/bans/{ip}")
+@app.delete("/api/bans/{ip}", dependencies=[Depends(verify_admin)])
 def unban_ip(ip: str, request: Request):
     db = SessionLocal()
     try:
@@ -315,7 +352,7 @@ def unban_ip(ip: str, request: Request):
         db.close()
 
 
-@app.get("/api/events")
+@app.get("/api/events", dependencies=[Depends(verify_admin)])
 def get_events():
     db = SessionLocal()
     try:
@@ -328,7 +365,7 @@ def get_events():
         db.close()
 
 
-@app.delete("/api/events")
+@app.delete("/api/events", dependencies=[Depends(verify_admin)])
 def clear_events():
     db = SessionLocal()
     try:

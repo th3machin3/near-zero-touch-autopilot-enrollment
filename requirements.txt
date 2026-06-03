@@ -6,3 +6,4 @@ msal
 requests
 python-dotenv
 aiofiles
+PyJWT[cryptography]>=2.8

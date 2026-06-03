@@ -60,6 +60,9 @@ ENTRA_TENANT_ID=<your-tenant-id>
 ENTRA_CLIENT_ID=<paste-application-client-id-here>
 ENTRA_CLIENT_SECRET=<paste-client-secret-value-here>
 
+CF_TEAM_DOMAIN=yourcompany.cloudflareaccess.com
+CF_ACCESS_AUD=<application-audience-tag>
+
 TOKEN_EXPIRY_DAYS=7
 AUTOPILOT_GROUP_TAG=autopilot-enrollment
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXXXX/XXXXX/XXXXX
@@ -68,6 +71,8 @@ LOCKOUT_DURATION_HOURS=24
 ```
 
 - `BACKEND_URL` -- the public URL where this app is accessible (used in the PowerShell one-liner)
+- `CF_TEAM_DOMAIN` -- your Cloudflare Zero Trust team domain (e.g. `yourcompany.cloudflareaccess.com`). Find it in Zero Trust > Settings > Custom Pages.
+- `CF_ACCESS_AUD` -- the Application Audience tag for your CF Access application. Find it in Access > Applications > your app > Overview. Required for admin endpoint JWT validation.
 - `TOKEN_EXPIRY_DAYS` -- how many days an enrollment code stays valid (default: 7)
 - `AUTOPILOT_GROUP_TAG` -- group tag applied to devices on import (used for dynamic group assignment in Intune)
 - `SLACK_WEBHOOK_URL` -- (optional) Slack incoming webhook URL for security alerts. Leave empty to disable.
@@ -300,7 +305,12 @@ Response:
 
 ### Admin endpoints (`/api/codes/*`)
 
-Protected by Cloudflare Access SSO. Only authenticated users who pass the SSO challenge can reach the admin UI and API endpoints.
+Protected by two independent layers:
+
+1. **Cloudflare Access SSO** (edge) — only authenticated users who pass the SSO challenge can reach the admin UI and API endpoints.
+2. **CF Access JWT validation** (app) — the app verifies the `Cf-Access-Jwt-Assertion` header that CF Access injects on every authenticated request. It fetches Cloudflare's public JWKS, verifies the JWT signature, and checks the audience tag matches your specific CF Access application. Admin endpoints return `401` if the JWT is absent or invalid, and `500` if `CF_TEAM_DOMAIN`/`CF_ACCESS_AUD` are not configured.
+
+This means admin endpoints are protected even if Cloudflare Access is misconfigured — the app independently confirms the request came through your CF Access application. The admin UI works transparently because browsers include the `CF_Authorization` session cookie on all same-domain requests, which CF Access uses to re-inject the JWT assertion before forwarding to the origin.
 
 ### Public endpoints (`/e/{code}`, `/api/e`)
 
@@ -360,6 +370,8 @@ Expose the app to the internet without opening ports on your server.
    - **Service:** `http://localhost:8000`
 6. Save — your app is now accessible at `https://autopilot.yourdomain.com`
 
+> **Note:** nginx is bound to `127.0.0.1:8000` so only the `cloudflared` daemon (running on the same host) can reach it. Port 8000 is not accessible from the internet even if your host firewall has gaps.
+
 #### 2. Cloudflare Access (SSO for admin UI)
 
 Protect the admin UI and API endpoints with SSO so only authorised users can access them.
@@ -414,9 +426,9 @@ To set up Slack webhooks: Slack > Settings > Manage apps > Incoming Webhooks > C
 
 Traffic passes through three layers before reaching the application:
 
-1. **Cloudflare** (edge) -- DDoS protection, bot fight mode, Access SSO for `/admin`
-2. **Nginx** (reverse proxy) -- rate limiting, user agent blocking
-3. **Application** (Python) -- failed attempt lockout, input validation, cryptographic code entropy
+1. **Cloudflare** (edge) -- DDoS protection, bot fight mode, Access SSO for admin paths
+2. **Nginx** (reverse proxy) -- rate limiting, user agent blocking; bound to `127.0.0.1` so only Cloudflare Tunnel's `cloudflared` daemon can reach it
+3. **Application** (Python) -- CF Access JWT signature verification on admin endpoints, failed attempt lockout, input validation, cryptographic code entropy
 
 ## Smoke Testing
 
