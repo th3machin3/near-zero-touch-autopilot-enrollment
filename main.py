@@ -33,7 +33,7 @@ SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 CF_TEAM_DOMAIN = os.getenv("CF_TEAM_DOMAIN", "")
 CF_ACCESS_AUD = os.getenv("CF_ACCESS_AUD", "")
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 jinja_env = Environment(loader=FileSystemLoader("templates"))
 

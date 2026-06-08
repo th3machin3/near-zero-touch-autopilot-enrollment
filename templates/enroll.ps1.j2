@@ -1,5 +1,4 @@
 # Autopilot Enrollment
-# Code: {{ code }} | {{ label }} | Expires: {{ expires_at }}
 
 Set-ExecutionPolicy Bypass -Scope Process -Force
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -51,7 +50,7 @@ try {
         -ContentType "application/json" `
         -TimeoutSec 360
 } catch {
-    Write-Host "ERROR: Registration failed. Contact IT and quote code {{ code }}" -ForegroundColor Red
+    Write-Host "ERROR: Registration failed. Contact IT support." -ForegroundColor Red
     Write-Host "Cleaning up..."
     if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force }
     return
