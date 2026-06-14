@@ -22,6 +22,7 @@ class Code(Base):
     used_at = Column(DateTime, nullable=True)
     serial = Column(Text, nullable=True)
     model = Column(Text, nullable=True)
+    created_by = Column(Text, nullable=True)
 
 
 class SecurityEvent(Base):

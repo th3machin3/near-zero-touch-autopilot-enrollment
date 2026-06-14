@@ -150,7 +150,7 @@ def _get_cf_public_key(kid: str, *, force_refresh: bool = False):
     return RSAAlgorithm.from_jwk(json.dumps(raw)) if raw else None
 
 
-def verify_admin(cf_access_jwt_assertion: str | None = Header(None)):
+def verify_admin(cf_access_jwt_assertion: str | None = Header(None)) -> str:
     if not CF_TEAM_DOMAIN or not CF_ACCESS_AUD:
         raise HTTPException(status_code=500, detail="Set CF_TEAM_DOMAIN and CF_ACCESS_AUD to enable admin access")
     if not cf_access_jwt_assertion:
@@ -161,7 +161,8 @@ def verify_admin(cf_access_jwt_assertion: str | None = Header(None)):
         key = _get_cf_public_key(kid) or _get_cf_public_key(kid, force_refresh=True)
         if not key:
             raise ValueError("Unknown signing key")
-        jwt.decode(cf_access_jwt_assertion, key, algorithms=["RS256"], audience=CF_ACCESS_AUD)
+        payload = jwt.decode(cf_access_jwt_assertion, key, algorithms=["RS256"], audience=CF_ACCESS_AUD)
+        return payload.get("email", "unknown")
     except HTTPException:
         raise
     except Exception:
@@ -183,8 +184,8 @@ class GenerateRequest(BaseModel):
     label: str
 
 
-@app.post("/api/codes/generate", dependencies=[Depends(verify_admin)])
-def generate(body: GenerateRequest, request: Request):
+@app.post("/api/codes/generate")
+def generate(body: GenerateRequest, request: Request, admin_email: str = Depends(verify_admin)):
     db = SessionLocal()
     try:
         code_id = generate_code()
@@ -197,13 +198,14 @@ def generate(body: GenerateRequest, request: Request):
             label=body.label,
             created_at=now,
             expires_at=now + timedelta(days=TOKEN_EXPIRY_DAYS),
+            created_by=admin_email,
         )
         db.add(code)
         db.commit()
 
         short_url = BACKEND_URL.replace("https://", "").replace("http://", "")
         oneliner = f"irm {short_url}/e/{code_id} | iex"
-        add_security_event("code_generated", get_client_ip(request), f"New code generated for '{body.label}'")
+        add_security_event("code_generated", get_client_ip(request), f"New code generated for '{body.label}' by {admin_email}")
         return {
             "code": code_id,
             "oneliner": oneliner,
@@ -225,6 +227,7 @@ def list_codes():
                 "status": get_status(c),
                 "serial": c.serial,
                 "model": c.model,
+                "created_by": c.created_by,
                 "created_at": c.created_at.isoformat(),
                 "expires_at": c.expires_at.isoformat(),
                 "used_at": c.used_at.isoformat() if c.used_at else None,
