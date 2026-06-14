@@ -263,8 +263,16 @@ def enroll(code: str, request: Request):
     db = SessionLocal()
     try:
         c = db.query(Code).filter(Code.id == code).first()
-        if not c or c.used or c.expires_at < datetime.utcnow():
+        if not c:
             record_failed_attempt(request)
+            raise HTTPException(status_code=404, detail="Code not found")
+        if c.used:
+            record_failed_attempt(request)
+            add_security_event("code_reuse_attempt", get_client_ip(request), f"Reuse attempt on already-used code '{code}' (serial: {c.serial or 'unknown'})")
+            raise HTTPException(status_code=404, detail="Code not found")
+        if c.expires_at < datetime.utcnow():
+            record_failed_attempt(request)
+            add_security_event("code_expired_attempt", get_client_ip(request), f"Attempt on expired code '{code}'")
             raise HTTPException(status_code=404, detail="Code not found")
 
         template = jinja_env.get_template("enroll.ps1.j2")
@@ -298,8 +306,16 @@ def register(body: RegisterRequest, request: Request, authorization: str | None 
     db = SessionLocal()
     try:
         c = db.query(Code).filter(Code.id == code_id).first()
-        if not c or c.used or c.expires_at < datetime.utcnow():
+        if not c:
             record_failed_attempt(request)
+            raise HTTPException(status_code=404, detail="Code not found")
+        if c.used:
+            record_failed_attempt(request)
+            add_security_event("code_reuse_attempt", get_client_ip(request), f"Reuse attempt on already-used code '{code_id}' (serial: {c.serial or 'unknown'})")
+            raise HTTPException(status_code=404, detail="Code not found")
+        if c.expires_at < datetime.utcnow():
+            record_failed_attempt(request)
+            add_security_event("code_expired_attempt", get_client_ip(request), f"Attempt on expired code '{code_id}'")
             raise HTTPException(status_code=404, detail="Code not found")
 
         try:

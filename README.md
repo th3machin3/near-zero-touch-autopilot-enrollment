@@ -286,7 +286,7 @@ Response:
 ]
 ```
 
-Event types: `failed_attempt`, `rate_limit`, `lockout`, `registration`, `registration_failed`, `code_generated`, `code_revoked`, `unban`.
+Event types: `failed_attempt`, `rate_limit`, `lockout`, `registration`, `registration_failed`, `code_generated`, `code_revoked`, `code_reuse_attempt`, `code_expired_attempt`, `unban`.
 
 ### Clear audit trail
 
