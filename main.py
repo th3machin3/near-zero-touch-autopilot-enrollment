@@ -162,7 +162,7 @@ def verify_admin(cf_access_jwt_assertion: str | None = Header(None)) -> str:
         if not key:
             raise ValueError("Unknown signing key")
         payload = jwt.decode(cf_access_jwt_assertion, key, algorithms=["RS256"], audience=CF_ACCESS_AUD)
-        return payload.get("email", "unknown")
+        return payload.get("email") or payload.get("common_name") or payload.get("sub", "unknown")
     except HTTPException:
         raise
     except Exception:
