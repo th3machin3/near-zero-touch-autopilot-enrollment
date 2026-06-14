@@ -101,7 +101,7 @@ Every device registered through the portal will automatically receive the assign
 docker compose up --build -d
 ```
 
-The portal is available at `http://localhost:8000`.
+The portal will be accessible at your configured tunnel hostname (e.g. `https://ap.yourcompany.com`) once the `cloudflared` sidecar connects. No ports are exposed on the host.
 
 To rebuild after config changes:
 
@@ -352,25 +352,27 @@ An nginx reverse proxy is included in the Docker Compose stack. It sits in front
 - **Rate limiting** on public endpoints (`/e/*`, `/api/e`): 2 requests/min per IP with burst of 1
 - **Rate limiting** on admin endpoints (`/admin`, `/api/codes/*`): 30 requests/min per IP with burst of 10
 - **User agent blocking** for known scanners (sqlmap, nikto, nmap, masscan, zgrab, python-requests)
-- The FastAPI app is not directly exposed — only nginx listens on port 8000
+- The FastAPI app is not directly exposed — only nginx is reachable, and only from within the Docker network via the `cloudflared` sidecar
 
 ### Cloudflare setup
 
 #### 1. Cloudflare Tunnel
 
-Expose the app to the internet without opening ports on your server.
+`cloudflared` runs as a sidecar container in the same Docker Compose stack. It connects outbound to Cloudflare — no ports are opened on the host.
 
 1. Go to **Cloudflare Zero Trust** > **Networks** > **Tunnels**
 2. Click **Create a tunnel** > select **Cloudflared**
 3. Name it (e.g. `autopilot-enrollment`)
-4. Install and run the connector on your server following the instructions shown
-5. Add a **public hostname**:
+4. Skip the connector install step — you will use the tunnel token instead
+5. Copy the tunnel token shown on the connector page
+6. Add it to your `.env` file: `CLOUDFLARE_TUNNEL_TOKEN=<your-token>`
+7. Add a **public hostname**:
    - **Subdomain:** `ap`
    - **Domain:** your domain (e.g. `yourcompany.com`)
-   - **Service:** `http://localhost:8000`
-6. Save — your app is now accessible at `https://autopilot.yourdomain.com`
+   - **Service:** `http://nginx:80`
+8. Save — your app is now accessible at `https://ap.yourcompany.com`
 
-> **Note:** nginx is bound to `127.0.0.1:8000` so only the `cloudflared` daemon (running on the same host) can reach it. Port 8000 is not accessible from the internet even if your host firewall has gaps.
+> **Note:** nginx is no longer bound to any host port. The only path into the stack is through the `cloudflared` sidecar. If other services run on the same Docker host, they use a separate tunnel with their own token — this tunnel is scoped exclusively to this app.
 
 #### 2. Cloudflare Access (SSO for admin UI)
 
