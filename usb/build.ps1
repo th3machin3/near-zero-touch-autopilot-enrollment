@@ -41,11 +41,17 @@ Write-Step "Locating Windows ADK..."
 function Find-ADKRoot {
     $root = $null
     try {
-        $root = (Get-ItemProperty `
+        # KitsRoot10 points to the Windows Kits root (e.g. C:\Program Files (x86)\Windows Kits\10\)
+        # The ADK lives one level deeper in Assessment and Deployment Kit\
+        $kitsRoot = (Get-ItemProperty `
             'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots' `
             -ErrorAction SilentlyContinue).KitsRoot10
+        if ($kitsRoot) {
+            $candidate = Join-Path $kitsRoot "Assessment and Deployment Kit"
+            if (Test-Path $candidate) { $root = $candidate }
+        }
     } catch {}
-    if (-not $root -or -not (Test-Path $root)) {
+    if (-not $root) {
         $root = @(
             'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit',
             'C:\Program Files\Windows Kits\10\Assessment and Deployment Kit'
