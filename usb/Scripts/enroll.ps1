@@ -44,16 +44,38 @@ if (-not (Test-Path $hashScript)) {
     exit 1
 }
 
-# --- Get enrollment code ---
+# --- Try to read code from code.txt on the USB drive ---
+# In WinPE, X: is the ramdisk — the physical USB gets a different drive letter.
+# Scan all mounted drives (excluding X:) for a code.txt in the root.
 $code = ""
-while ($true) {
+$codeFile = Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -ne 'X' } |
+    ForEach-Object { Join-Path $_.Root "code.txt" } |
+    Where-Object { Test-Path $_ } |
+    Select-Object -First 1
+
+if ($codeFile) {
+    $raw = (Get-Content $codeFile -Raw).Trim().ToUpper()
+    if ($raw.Length -eq 12 -and $raw -match '^[A-Z0-9]+$') {
+        $code = $raw
+        Write-Host "  Found code.txt on USB — using code automatically." -ForegroundColor Cyan
+        Write-Host ""
+    } else {
+        Write-Host "  code.txt found but contents are not a valid 12-char code ('$raw')." -ForegroundColor DarkYellow
+        Write-Host "  Falling back to manual entry." -ForegroundColor DarkYellow
+        Write-Host ""
+    }
+}
+
+# --- Prompt if no valid code was found automatically ---
+while ($code -eq "") {
     $raw = (Read-Host "  Enter enrollment code").Trim().ToUpper()
     if ($raw.Length -eq 12 -and $raw -match '^[A-Z0-9]+$') {
         $code = $raw
-        break
+    } else {
+        Write-Host "  Codes are 12 uppercase letters/digits (e.g. ABC1DEF2GH3J). Try again." -ForegroundColor Red
+        Write-Host ""
     }
-    Write-Host "  Codes are 12 uppercase letters/digits (e.g. ABC1DEF2GH3J). Try again." -ForegroundColor Red
-    Write-Host ""
 }
 
 Write-Host ""

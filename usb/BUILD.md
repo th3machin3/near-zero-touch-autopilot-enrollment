@@ -131,6 +131,31 @@ MakeWinPEMedia /ISO C:\WinPE_amd64 C:\AutopilotEnrollment.iso
 
 ---
 
+## Pre-loading an enrollment code (optional, no typing needed)
+
+If you want a device to enroll with zero keyboard interaction, place a `code.txt`
+file in the **root of the USB drive** after writing the WinPE image:
+
+```
+E:\code.txt   (E: = your USB drive letter on a normal Windows machine)
+```
+
+Contents — just the 12-character code, nothing else:
+
+```
+ABC1DEF2GH3J
+```
+
+On boot, `enroll.ps1` scans all drives (excluding the WinPE ramdisk `X:`) for
+`code.txt`. If found and valid, it uses the code automatically and skips the
+prompt. If the file is missing, empty, or contains an invalid code it falls
+back to asking the technician to type one.
+
+One file, one USB, one device. Reuse the same USB for the next device by
+deleting the old `code.txt` and dropping a new one.
+
+---
+
 ## BACKEND_URL
 
 The enrollment portal URL is hardcoded in `usb/Scripts/enroll.ps1`:
