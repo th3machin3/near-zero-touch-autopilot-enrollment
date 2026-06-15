@@ -150,6 +150,20 @@ The backend does not poll for confirmation because Cloudflare's free plan enforc
 
 **Safe to retry:** If a submission was accepted but something went wrong before the device restarted, generate a new code — the original code is marked used on successful submission. If the device was already submitted in a previous attempt, Microsoft typically recognises the duplicate hardware hash and does not create a second entry, though idempotency is not explicitly guaranteed.
 
+### WinPE Bootable USB (no internet on the device at OOBE)
+
+For devices that won't have internet during OOBE, or for deployments where running a PowerShell one-liner is impractical, a bootable WinPE USB is available.
+
+The USB:
+- Boots Windows PE directly from the USB drive — no OS required on the target device
+- Prompts the technician to enter an enrollment code at the keyboard
+- Collects the hardware hash using a bundled copy of `Get-WindowsAutoPilotInfo.ps1`
+- Submits to the portal's `/api/e` endpoint over the network (ethernet or Wi-Fi via `wpeinit`)
+- Stores no credentials on the USB — the enrollment code is the only auth
+
+**Build the USB:** see [usb/BUILD.md](usb/BUILD.md) for step-by-step instructions.
+You need a Windows machine, the Windows ADK, and the WinPE add-on (all free from Microsoft).
+
 ### Already Installed Device
 
 If running the script on a device that has already completed OOBE (e.g. for testing):
@@ -502,6 +516,11 @@ autopilot-enrollment/
 │   └── index.html       # Frontend UI (served at /admin)
 ├── templates/
 │   └── enroll.ps1.j2    # PowerShell enrollment script template
+├── usb/
+│   ├── Scripts/
+│   │   └── enroll.ps1   # WinPE enrollment script (runs on boot)
+│   ├── startnet.cmd     # WinPE startup command (replaces default)
+│   └── BUILD.md         # Step-by-step instructions to build the bootable USB
 ├── data/
 │   └── enrollment.db    # SQLite database (created at runtime)
 ├── .env                 # Configuration (not committed)
