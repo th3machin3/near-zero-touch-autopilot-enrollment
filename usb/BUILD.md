@@ -6,37 +6,34 @@ the USB — the one-time code is the only authentication.
 
 ## Requirements
 
-- A **Windows machine** (or VM) with internet access (~1.2 GB for ADK)
+- A **64-bit (x64) Windows machine** with internet access (~1.2 GB for ADK)
 - A USB drive **>= 1 GB** (it will be fully erased)
+
+> **ARM64 Windows machines (e.g. Surface Pro X, Qualcomm laptops) cannot build
+> this image** due to ADK compatibility issues. Use a standard Intel/AMD Windows
+> PC or VM.
 
 That's it. The build script handles everything else automatically.
 
 ---
 
-## Build
+## Build a USB
 
 Insert the USB drive, then double-click **`build.bat`**.
 
 The script will:
-1. Detect the Windows ADK — if missing, offer to download and install it silently
+1. Detect the Windows ADK — if missing, offer to download and install it
 2. Download `Get-WindowsAutoPilotInfo.ps1` from PSGallery
 3. Build and patch the WinPE image
 4. Ask which USB drive to erase and confirm
 5. Write the bootable image
 
-**For ARM64 devices** (Qualcomm laptops, ARM VMs):
-```cmd
-build.bat arm64
-```
+If the WinPE add-on needs installing, an installer window will appear — click
+through it and let it finish before the script continues.
 
 **To specify the drive letter** and skip the detection prompt:
 ```cmd
 build.bat amd64 E
-```
-
-**To build an ISO instead of writing to USB** (for VM testing):
-```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1 -Iso -Arch arm64
 ```
 
 > First run takes 10-15 minutes if ADK needs to be downloaded and installed.
@@ -44,13 +41,29 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Iso -Arch arm64
 
 ---
 
-## Test in a VM before cutting USBs
+## Build an ISO (for VM testing)
 
-1. Build an ISO (see above)
-2. Boot a VM from it (UTM on Mac: new VM > Other > select the ISO as boot disk)
-3. WinPE boots, `wpeinit` gets DHCP, the enrollment screen appears
-4. Enter a valid code from the admin portal
-5. Verify the device appears in Intune > Devices > Windows > Windows Enrollment > Devices
+To get a bootable ISO file instead of writing to a USB:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build.ps1 -Iso
+```
+
+This saves `AutopilotEnrollment_amd64.iso` in the `usb\` folder. Boot a VM from
+it to test the full enrollment flow before cutting real USBs.
+
+> Must be run on an x64 Windows machine — same requirement as USB builds.
+
+---
+
+## Test in a VM
+
+1. Build an ISO (see above) on an x64 Windows machine
+2. Copy the ISO to your Mac
+3. UTM > New VM > Emulate > Other > select the ISO as boot disk
+4. WinPE boots, `wpeinit` gets DHCP, the enrollment screen appears
+5. Enter a valid code from the admin portal
+6. Verify the device appears in Intune > Devices > Windows > Windows Enrollment > Devices
 
 ---
 
@@ -101,6 +114,7 @@ Update this before building if the portal URL ever changes.
 | HTTP 404 on valid code | Code already used or expired; generate a new one from the portal |
 | Script not found on boot | Scripts were not copied into the image; rebuild |
 | ADK auto-install fails | Run `build.bat` again; or install manually from [learn.microsoft.com](https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install) |
+| `copype failed: architecture not found` | You are on an ARM64 Windows machine — use an x64 Windows PC instead |
 
 If the script crashes, WinPE drops to a `cmd` shell (the `cmd /k` in `startnet.cmd`)
 so you can debug interactively from the device.
