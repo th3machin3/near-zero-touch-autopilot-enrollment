@@ -126,10 +126,13 @@ $makeMedia = Join-Path $winPERoot "MakeWinPEMedia.cmd"
 $ocDir     = Join-Path $winPERoot "$Arch\WinPE_OCs"
 
 # Only check for WinPE add-on separately if Install-ADK didn't already handle it
-if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir))) {
-    Write-Host "  WinPE add-on not found. Looking for:" -ForegroundColor Yellow
-    Write-Host "    $copype" -ForegroundColor DarkGray
-    Write-Host "    $ocDir" -ForegroundColor DarkGray
+# copype needs the arch media folder ($Arch\) AND the OC packages ($Arch\WinPE_OCs)
+$winPEMedia = Join-Path $winPERoot $Arch
+if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir) -or -not (Test-Path $winPEMedia))) {
+    Write-Host "  WinPE add-on incomplete. Looking for:" -ForegroundColor Yellow
+    Write-Host "    $copype  $(if (Test-Path $copype) { '[found]' } else { '[MISSING]' })" -ForegroundColor DarkGray
+    Write-Host "    $ocDir  $(if (Test-Path $ocDir) { '[found]' } else { '[MISSING]' })" -ForegroundColor DarkGray
+    Write-Host "    $winPEMedia  $(if (Test-Path $winPEMedia) { '[found]' } else { '[MISSING]' })" -ForegroundColor DarkGray
     Write-Host ""
     $answer = (Read-Host "  Install WinPE add-on automatically now? Requires ~900 MB. (Y/N)").Trim().ToUpper()
     if ($answer -ne 'Y') {
