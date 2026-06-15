@@ -81,10 +81,9 @@ function Install-ADK {
     Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243391" `
         -OutFile $peExe -UseBasicParsing
 
-    Write-Host "  Launching WinPE add-on installer - complete it then return here..." -ForegroundColor Cyan
-    $p = Start-Process -FilePath $peExe `
-        -ArgumentList "/features OptionId.WindowsPreinstallationEnvironment /norestart" `
-        -Wait -PassThru
+    Write-Host "  Launching WinPE add-on installer..." -ForegroundColor Cyan
+    Write-Host "  Select 'Install to this computer' and click through until it finishes." -ForegroundColor Cyan
+    $p = Start-Process -FilePath $peExe -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "WinPE add-on installer exited with code $($p.ExitCode)" }
     Write-OK "WinPE add-on installed."
 
@@ -149,12 +148,11 @@ if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir
         $peExe = Join-Path $tmp "adkwinpesetup.exe"
         Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243391" `
             -OutFile $peExe -UseBasicParsing
-        Write-Host "  Launching WinPE add-on installer - complete it then return here..." -ForegroundColor Cyan
-        $p = Start-Process -FilePath $peExe `
-            -ArgumentList "/features OptionId.WindowsPreinstallationEnvironment /norestart" `
-            -Wait -PassThru
+        Write-Host "  Launching WinPE add-on installer..." -ForegroundColor Cyan
+        Write-Host "  Select 'Install to this computer' and click through until it finishes." -ForegroundColor Cyan
+        $p = Start-Process -FilePath $peExe -Wait -PassThru
         if ($p.ExitCode -ne 0) { throw "Installer exited with code $($p.ExitCode)" }
-        Write-OK "WinPE add-on installed."
+        Write-OK "WinPE add-on installer completed."
         Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
     } catch {
         Write-Fail "Auto-install failed: $_"
@@ -162,6 +160,14 @@ if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir
     }
 }
 
+# Verify winpe.wim landed regardless of which install path ran
+$winPEWimCheck = Join-Path $winPERoot "$Arch\en-us\winpe.wim"
+if (-not (Test-Path $winPEWimCheck)) {
+    Write-Fail "WinPE media files missing after installation: $winPEWimCheck"
+    Write-Host "  The WinPE add-on installer may not have completed fully." -ForegroundColor Red
+    Write-Host "  Re-run and click through the installer until it shows 'Installation Complete'." -ForegroundColor Red
+    exit 1
+}
 Write-OK "ADK: $adkRoot"
 
 # ---------------------------------------------------------------------------
