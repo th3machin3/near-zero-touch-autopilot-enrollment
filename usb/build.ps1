@@ -350,8 +350,11 @@ if (Test-Path $oscdimgDir) { $env:PATH = "$oscdimgDir;$env:PATH" }
 
 if ($Iso) {
     Write-Step "Creating ISO: $isoPath ..."
+    $ErrorActionPreference = 'Continue'
     $result = & $makeMedia /ISO $workDir $isoPath 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $mediaExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($mediaExit -ne 0) {
         Write-Fail "MakeWinPEMedia /ISO failed."
         Write-Host $result
         exit 1
@@ -359,9 +362,11 @@ if ($Iso) {
     Write-OK "ISO created: $isoPath"
 } else {
     Write-Step "Writing to USB ${usbLetter}: (this will take a few minutes)..."
-    # Pipe 'y' to accept MakeWinPEMedia's own format confirmation
+    $ErrorActionPreference = 'Continue'
     $result = "y" | & $makeMedia /UFD $workDir "${usbLetter}:" 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $mediaExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($mediaExit -ne 0) {
         Write-Fail "MakeWinPEMedia failed."
         Write-Host $result
         exit 1
