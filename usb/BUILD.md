@@ -17,6 +17,16 @@ That's it. The build script handles everything else automatically.
 
 ---
 
+## Quick reference
+
+| Goal | Command |
+|------|---------|
+| Build a bootable USB | double-click `build.bat` |
+| Build a bootable USB (specify drive) | `build.bat amd64 E` |
+| Build an ISO for VM testing | `powershell -ExecutionPolicy Bypass -File build.ps1 -Iso` |
+
+---
+
 ## Build a USB
 
 Insert the USB drive, then double-click **`build.bat`**.
