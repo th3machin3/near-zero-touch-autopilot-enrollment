@@ -254,6 +254,12 @@ $mountDir = Join-Path $workDir "mount"
 Write-Step "Building WinPE base ($Arch)..."
 if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force }
 
+# copype.cmd requires WinPERoot and OSCDImgRoot env vars (normally set by the
+# "Deployment and Imaging Tools Environment" shortcut). Set them explicitly so
+# the script works without that shortcut being launched first.
+$env:WinPERoot    = $winPERoot
+$env:OSCDImgRoot  = Join-Path $adkRoot "Deployment Tools\amd64\Oscdimg"
+
 $result = & $copype $Arch $workDir 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Fail "copype failed."
