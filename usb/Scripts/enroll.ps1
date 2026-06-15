@@ -69,7 +69,7 @@ if (-not (Test-Path $hashScript)) {
 }
 
 # --- Try to read code from code.txt on the USB drive ---
-# In WinPE, X: is the ramdisk — the physical USB gets a different drive letter.
+# In WinPE, X: is the ramdisk - the physical USB gets a different drive letter.
 # Scan all mounted drives (excluding X:) for a code.txt in the root.
 $code = ""
 $codeFile = Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
@@ -82,7 +82,7 @@ if ($codeFile) {
     $raw = (Get-Content $codeFile -Raw).Trim().ToUpper()
     if ($raw.Length -eq 12 -and $raw -match '^[A-Z0-9]+$') {
         $code = $raw
-        Write-Host "  Found code.txt on USB — using code automatically." -ForegroundColor Cyan
+        Write-Host "  Found code.txt on USB - using code automatically." -ForegroundColor Cyan
         Write-Host ""
     } else {
         Write-Host "  code.txt found but contents are not a valid 12-char code ('$raw')." -ForegroundColor DarkYellow
@@ -141,7 +141,7 @@ $serial = $device.'Device Serial Number'
 try { Remove-Item $tmpCsv -Force -ErrorAction SilentlyContinue } catch {}
 
 if (-not $hardwareHash -or $hardwareHash.Length -lt 100) {
-    Write-Fail "Hardware hash is empty or too short — collection may have failed."
+    Write-Fail "Hardware hash is empty or too short - collection may have failed."
     Write-Host ""
     Read-Host "  Press Enter to exit"
     exit 1
@@ -205,7 +205,7 @@ try {
         404 { Write-Host "  Code not found, already used, or expired. Ask IT for a new code." -ForegroundColor Red }
         429 { Write-Host "  Too many failed attempts from this network. Contact IT." -ForegroundColor Red }
         502 { Write-Host "  Microsoft Autopilot API error. Try again or contact IT." -ForegroundColor Red }
-        0   { Write-Host "  Could not reach $BACKEND_URL — check network cable/Wi-Fi." -ForegroundColor Red }
+        0   { Write-Host "  Could not reach $BACKEND_URL - check network cable/Wi-Fi." -ForegroundColor Red }
         default { Write-Host "  Unexpected error: $_" -ForegroundColor Red }
     }
     Write-Host ""

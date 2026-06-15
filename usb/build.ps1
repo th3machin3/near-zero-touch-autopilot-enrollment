@@ -85,7 +85,7 @@ $usbLetter = $null
 
 if ($Iso) {
     $isoPath = Join-Path $scriptDir "AutopilotEnrollment_$Arch.iso"
-    Write-Step "ISO mode — will save to: $isoPath"
+    Write-Step "ISO mode - will save to: $isoPath"
 } else {
     Write-Step "Detecting USB drives..."
 
@@ -117,7 +117,7 @@ if ($Iso) {
 
     $usbLetter = $target.DeviceID.TrimEnd(':')
     $usbGB     = if ($target.Size) { "$([math]::Round($target.Size/1GB,1)) GB" } else { "unknown size" }
-    Write-OK "Target: ${usbLetter}: — $($target.VolumeName) ($usbGB)"
+    Write-OK "Target: ${usbLetter}: - $($target.VolumeName) ($usbGB)"
 
     Write-Host ""
     Write-Host "  !! ALL DATA ON ${usbLetter}: WILL BE PERMANENTLY ERASED !!" -ForegroundColor Red
@@ -133,7 +133,7 @@ $scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $hashScript  = Join-Path $scriptDir "Scripts\Get-WindowsAutoPilotInfo.ps1"
 
 if (Test-Path $hashScript) {
-    Write-Step "Get-WindowsAutoPilotInfo.ps1 already present — skipping download."
+    Write-Step "Get-WindowsAutoPilotInfo.ps1 already present - skipping download."
 } else {
     Write-Step "Downloading Get-WindowsAutoPilotInfo from PSGallery..."
     try {
@@ -212,7 +212,7 @@ foreach ($pkg in $packages) {
         Write-OK $pkg
     } catch {
         Write-Fail "Failed: $_"
-        Write-Host "  Rolling back — discarding mounted image..."
+        Write-Host "  Rolling back - discarding mounted image..."
         & dism /Unmount-Image /MountDir:"$mountDir" /Discard /Quiet 2>&1 | Out-Null
         Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue
         exit 1
@@ -277,7 +277,7 @@ if (-not $Iso) {
         Copy-Item $codeTxt "${usbLetter}:\code.txt" -Force
         Write-OK "code.txt copied to USB root (auto-enroll enabled)."
     } else {
-        Write-Host "   (no code.txt found — USB will prompt for code on boot)" -ForegroundColor DarkGray
+        Write-Host "   (no code.txt found - USB will prompt for code on boot)" -ForegroundColor DarkGray
     }
 }
 
