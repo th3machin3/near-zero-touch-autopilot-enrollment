@@ -254,18 +254,14 @@ $mountDir = Join-Path $workDir "mount"
 Write-Step "Building WinPE base ($Arch)..."
 if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force }
 
-$result = & cmd /c "`"`"$copype`" $Arch `"$workDir`"`"" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    # Fallback: invoke copype via pushd so %~dp0 resolves correctly
-    $prevDir = Get-Location
-    Set-Location (Split-Path $copype)
-    $result2 = & cmd /c "copype.cmd $Arch `"$workDir`"" 2>&1
-    Set-Location $prevDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-Fail "copype failed."
-        Write-Host $result2
-        exit 1
-    }
+Push-Location (Split-Path $copype)
+$result = cmd /c "copype.cmd $Arch `"$workDir`"" 2>&1
+$copypeExit = $LASTEXITCODE
+Pop-Location
+if ($copypeExit -ne 0) {
+    Write-Fail "copype failed."
+    Write-Host $result
+    exit 1
 }
 Write-OK "WinPE base created."
 
