@@ -19,6 +19,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Write-Step { param([string]$s) Write-Host "`n>> $s" -ForegroundColor Yellow }
 function Write-OK   { param([string]$s) Write-Host "   [OK] $s" -ForegroundColor Green }
@@ -83,7 +84,8 @@ function Install-ADK {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-$adkRoot = Find-ADKRoot
+$adkRoot     = Find-ADKRoot
+$installedAll = $false
 
 if (-not $adkRoot) {
     Write-Host "  Windows ADK not found." -ForegroundColor Yellow
@@ -96,7 +98,8 @@ if (-not $adkRoot) {
         exit 1
     }
     try {
-        Install-ADK
+        Install-ADK  # installs both ADK and WinPE add-on
+        $installedAll = $true
     } catch {
         Write-Fail "Auto-install failed: $_"
         Write-Host "  Install manually from:" -ForegroundColor Red
@@ -115,8 +118,8 @@ $copype    = Join-Path $winPERoot "copype.cmd"
 $makeMedia = Join-Path $winPERoot "MakeWinPEMedia.cmd"
 $ocDir     = Join-Path $winPERoot "$Arch\WinPE_OCs"
 
-# WinPE add-on might be missing even if base ADK is present
-if (-not (Test-Path $copype) -or -not (Test-Path $ocDir)) {
+# Only check for WinPE add-on separately if Install-ADK didn't already handle it
+if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir))) {
     Write-Host "  WinPE add-on not found." -ForegroundColor Yellow
     Write-Host ""
     $answer = (Read-Host "  Install WinPE add-on automatically now? Requires ~900 MB. (Y/N)").Trim().ToUpper()
@@ -126,7 +129,7 @@ if (-not (Test-Path $copype) -or -not (Test-Path $ocDir)) {
         exit 1
     }
     try {
-        $tmp    = Join-Path $env:TEMP "adk_setup"
+        $tmp   = Join-Path $env:TEMP "adk_setup"
         New-Item -ItemType Directory -Path $tmp -Force | Out-Null
         Write-Host "  Downloading WinPE add-on installer..." -ForegroundColor Cyan
         $peExe = Join-Path $tmp "adkwinpesetup.exe"
@@ -199,8 +202,7 @@ if ($Iso) {
 # ---------------------------------------------------------------------------
 # 3. Download Get-WindowsAutoPilotInfo (skip if already present)
 # ---------------------------------------------------------------------------
-$scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
-$hashScript  = Join-Path $scriptDir "Scripts\Get-WindowsAutoPilotInfo.ps1"
+$hashScript = Join-Path $scriptDir "Scripts\Get-WindowsAutoPilotInfo.ps1"
 
 if (Test-Path $hashScript) {
     Write-Step "Get-WindowsAutoPilotInfo.ps1 already present - skipping download."
