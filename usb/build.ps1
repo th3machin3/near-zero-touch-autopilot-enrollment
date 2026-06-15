@@ -343,9 +343,14 @@ Write-OK "Image committed."
 # ---------------------------------------------------------------------------
 # 9. Write to USB or ISO
 # ---------------------------------------------------------------------------
+
+# MakeWinPEMedia calls oscdimg.exe by name - add its directory to PATH
+$oscdimgDir = Join-Path $adkRoot "Deployment Tools\amd64\Oscdimg"
+if (Test-Path $oscdimgDir) { $env:PATH = "$oscdimgDir;$env:PATH" }
+
 if ($Iso) {
     Write-Step "Creating ISO: $isoPath ..."
-    $result = & cmd /c "`"$makeMedia`" /ISO `"$workDir`" `"$isoPath`"" 2>&1
+    $result = & $makeMedia /ISO $workDir $isoPath 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "MakeWinPEMedia /ISO failed."
         Write-Host $result
@@ -355,7 +360,7 @@ if ($Iso) {
 } else {
     Write-Step "Writing to USB ${usbLetter}: (this will take a few minutes)..."
     # Pipe 'y' to accept MakeWinPEMedia's own format confirmation
-    $result = "y" | cmd /c "`"$makeMedia`" /UFD `"$workDir`" ${usbLetter}:" 2>&1
+    $result = "y" | & $makeMedia /UFD $workDir "${usbLetter}:" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "MakeWinPEMedia failed."
         Write-Host $result
