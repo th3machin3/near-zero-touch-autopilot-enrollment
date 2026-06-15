@@ -32,35 +32,82 @@ Write-Host "  ==========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # ---------------------------------------------------------------------------
-# 1. Locate Windows ADK
+# 1. Locate Windows ADK — offer to install automatically if missing
 # ---------------------------------------------------------------------------
 Write-Step "Locating Windows ADK..."
 
-# Prefer registry lookup, fall back to known default paths
-$adkRoot = $null
-try {
-    $adkRoot = (Get-ItemProperty `
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots' `
-        -ErrorAction SilentlyContinue).KitsRoot10
-} catch {}
-
-if (-not $adkRoot -or -not (Test-Path $adkRoot)) {
-    $adkRoot = @(
-        'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit',
-        'C:\Program Files\Windows Kits\10\Assessment and Deployment Kit'
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+function Find-ADKRoot {
+    $root = $null
+    try {
+        $root = (Get-ItemProperty `
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots' `
+            -ErrorAction SilentlyContinue).KitsRoot10
+    } catch {}
+    if (-not $root -or -not (Test-Path $root)) {
+        $root = @(
+            'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit',
+            'C:\Program Files\Windows Kits\10\Assessment and Deployment Kit'
+        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    }
+    return $root
 }
 
+function Install-ADK {
+    $tmp = Join-Path $env:TEMP "adk_setup"
+    New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+
+    Write-Host "  Downloading Windows ADK installer (~2 MB, installs ~300 MB)..." -ForegroundColor Cyan
+    $adkExe = Join-Path $tmp "adksetup.exe"
+    Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243390" `
+        -OutFile $adkExe -UseBasicParsing
+
+    Write-Host "  Installing ADK (Deployment Tools only) - this takes a few minutes..." -ForegroundColor Cyan
+    $p = Start-Process -FilePath $adkExe `
+        -ArgumentList "/features OptionId.DeploymentTools /quiet /norestart" `
+        -Wait -PassThru
+    if ($p.ExitCode -ne 0) { throw "ADK installer exited with code $($p.ExitCode)" }
+    Write-OK "ADK installed."
+
+    Write-Host "  Downloading WinPE add-on installer (~2 MB, installs ~900 MB)..." -ForegroundColor Cyan
+    $peExe = Join-Path $tmp "adkwinpesetup.exe"
+    Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243391" `
+        -OutFile $peExe -UseBasicParsing
+
+    Write-Host "  Installing WinPE add-on - this takes a few minutes..." -ForegroundColor Cyan
+    $p = Start-Process -FilePath $peExe `
+        -ArgumentList "/features OptionId.WindowsPreinstallationEnvironment /quiet /norestart" `
+        -Wait -PassThru
+    if ($p.ExitCode -ne 0) { throw "WinPE add-on installer exited with code $($p.ExitCode)" }
+    Write-OK "WinPE add-on installed."
+
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+$adkRoot = Find-ADKRoot
+
 if (-not $adkRoot) {
-    Write-Fail "Windows ADK not found."
-    Write-Host @"
-
-  Download and install the Windows ADK (Deployment Tools only) and the
-  WinPE add-on from:
-  https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install
-
-"@ -ForegroundColor Red
-    exit 1
+    Write-Host "  Windows ADK not found." -ForegroundColor Yellow
+    Write-Host ""
+    $answer = (Read-Host "  Install it automatically now? Requires ~1.2 GB and internet access. (Y/N)").Trim().ToUpper()
+    if ($answer -ne 'Y') {
+        Write-Host ""
+        Write-Host "  Install manually from:" -ForegroundColor Red
+        Write-Host "  https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install" -ForegroundColor Red
+        exit 1
+    }
+    try {
+        Install-ADK
+    } catch {
+        Write-Fail "Auto-install failed: $_"
+        Write-Host "  Install manually from:" -ForegroundColor Red
+        Write-Host "  https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install" -ForegroundColor Red
+        exit 1
+    }
+    $adkRoot = Find-ADKRoot
+    if (-not $adkRoot) {
+        Write-Fail "ADK still not found after installation. Try restarting and re-running."
+        exit 1
+    }
 }
 
 $winPERoot = Join-Path $adkRoot "Windows Preinstallation Environment"
@@ -68,13 +115,36 @@ $copype    = Join-Path $winPERoot "copype.cmd"
 $makeMedia = Join-Path $winPERoot "MakeWinPEMedia.cmd"
 $ocDir     = Join-Path $winPERoot "$Arch\WinPE_OCs"
 
-foreach ($required in $copype, $makeMedia, $ocDir) {
-    if (-not (Test-Path $required)) {
-        Write-Fail "WinPE add-on component missing: $required"
-        Write-Host "  Install the WinPE add-on for Windows ADK (separate download)." -ForegroundColor Red
+# WinPE add-on might be missing even if base ADK is present
+if (-not (Test-Path $copype) -or -not (Test-Path $ocDir)) {
+    Write-Host "  WinPE add-on not found." -ForegroundColor Yellow
+    Write-Host ""
+    $answer = (Read-Host "  Install WinPE add-on automatically now? Requires ~900 MB. (Y/N)").Trim().ToUpper()
+    if ($answer -ne 'Y') {
+        Write-Host "  Install manually from:" -ForegroundColor Red
+        Write-Host "  https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install" -ForegroundColor Red
+        exit 1
+    }
+    try {
+        $tmp    = Join-Path $env:TEMP "adk_setup"
+        New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+        Write-Host "  Downloading WinPE add-on installer..." -ForegroundColor Cyan
+        $peExe = Join-Path $tmp "adkwinpesetup.exe"
+        Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243391" `
+            -OutFile $peExe -UseBasicParsing
+        Write-Host "  Installing - this takes a few minutes..." -ForegroundColor Cyan
+        $p = Start-Process -FilePath $peExe `
+            -ArgumentList "/features OptionId.WindowsPreinstallationEnvironment /quiet /norestart" `
+            -Wait -PassThru
+        if ($p.ExitCode -ne 0) { throw "Installer exited with code $($p.ExitCode)" }
+        Write-OK "WinPE add-on installed."
+        Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Fail "Auto-install failed: $_"
         exit 1
     }
 }
+
 Write-OK "ADK: $adkRoot"
 
 # ---------------------------------------------------------------------------
