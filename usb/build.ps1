@@ -18,7 +18,8 @@ param(
     [switch]$Iso
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference  = 'Stop'
+$ProgressPreference     = 'SilentlyContinue'   # suppress Invoke-WebRequest progress bar
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Write-Step { param([string]$s) Write-Host "`n>> $s" -ForegroundColor Yellow }
@@ -120,7 +121,9 @@ $ocDir     = Join-Path $winPERoot "$Arch\WinPE_OCs"
 
 # Only check for WinPE add-on separately if Install-ADK didn't already handle it
 if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir))) {
-    Write-Host "  WinPE add-on not found." -ForegroundColor Yellow
+    Write-Host "  WinPE add-on not found. Looking for:" -ForegroundColor Yellow
+    Write-Host "    $copype" -ForegroundColor DarkGray
+    Write-Host "    $ocDir" -ForegroundColor DarkGray
     Write-Host ""
     $answer = (Read-Host "  Install WinPE add-on automatically now? Requires ~900 MB. (Y/N)").Trim().ToUpper()
     if ($answer -ne 'Y') {
