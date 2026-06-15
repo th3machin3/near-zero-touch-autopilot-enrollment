@@ -81,9 +81,8 @@ function Install-ADK {
     Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243391" `
         -OutFile $peExe -UseBasicParsing
 
-    Write-Host "  Launching WinPE add-on installer..." -ForegroundColor Cyan
-    Write-Host "  Select 'Install to this computer' and click through until it finishes." -ForegroundColor Cyan
-    $p = Start-Process -FilePath $peExe -Wait -PassThru
+    Write-Host "  Installing WinPE add-on silently (this takes several minutes)..." -ForegroundColor Cyan
+    $p = Start-Process -FilePath $peExe -ArgumentList "/quiet /norestart" -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "WinPE add-on installer exited with code $($p.ExitCode)" }
     Write-OK "WinPE add-on installed."
 
@@ -148,11 +147,10 @@ if (-not $installedAll -and (-not (Test-Path $copype) -or -not (Test-Path $ocDir
         $peExe = Join-Path $tmp "adkwinpesetup.exe"
         Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2243391" `
             -OutFile $peExe -UseBasicParsing
-        Write-Host "  Launching WinPE add-on installer..." -ForegroundColor Cyan
-        Write-Host "  Select 'Install to this computer' and click through until it finishes." -ForegroundColor Cyan
-        $p = Start-Process -FilePath $peExe -Wait -PassThru
+        Write-Host "  Installing WinPE add-on silently (this takes several minutes)..." -ForegroundColor Cyan
+        $p = Start-Process -FilePath $peExe -ArgumentList "/quiet /norestart" -Wait -PassThru
         if ($p.ExitCode -ne 0) { throw "Installer exited with code $($p.ExitCode)" }
-        Write-OK "WinPE add-on installer completed."
+        Write-OK "WinPE add-on installed."
         Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
     } catch {
         Write-Fail "Auto-install failed: $_"
