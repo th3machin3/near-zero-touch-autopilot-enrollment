@@ -15,119 +15,84 @@ Install the ADK first, then the WinPE add-on. Both are free from Microsoft.
 
 ---
 
-## Step 1 — Download Get-WindowsAutoPilotInfo
+## Automated build (recommended)
 
-Run this on a normal Windows machine (not WinPE — PSGallery is unavailable there):
+Insert the USB drive, then double-click **`build.bat`** in this folder.
+It will:
+1. Locate the Windows ADK automatically
+2. Download `Get-WindowsAutoPilotInfo.ps1` from PSGallery
+3. Build and patch the WinPE image (adds PowerShell, WMI, networking)
+4. Ask you to confirm which USB drive to erase
+5. Write the bootable image
 
-```powershell
-# PowerShell (admin, internet access required)
-Install-Script -Name Get-WindowsAutoPilotInfo -Force -Scope CurrentUser
-# Find where it saved:
-$p = (Get-InstalledScript Get-WindowsAutoPilotInfo).InstalledLocation
-Write-Host $p
-# Copy the .ps1 file into usb\Scripts\ before building
+For ARM64 devices (Qualcomm laptops, ARM VMs):
+```cmd
+build.bat arm64
 ```
 
-Place the resulting `Get-WindowsAutoPilotInfo.ps1` in the `usb\Scripts\` folder of this
-repo **before continuing**. The build will fail without it.
+To specify the drive letter directly and skip the USB detection prompt:
+```cmd
+build.bat amd64 E
+```
+
+To create a bootable **ISO** instead of writing to USB (useful for VM testing):
+```cmd
+powershell -ExecutionPolicy Bypass -File build.ps1 -Iso
+```
+
+> The build takes roughly 3–5 minutes. The DISM optional-component steps are
+> the slow part — this is normal.
 
 ---
 
-## Step 2 — Build the WinPE image
+## Manual build steps (reference / troubleshooting)
+
+These are what `build.ps1` does under the hood, in case you need to run them
+by hand.
 
 Open **Deployment and Imaging Tools Environment** as Administrator
 (Start → search "Deployment and Imaging Tools Environment").
 
 ```cmd
-REM Adjust amd64 → arm64 if building for ARM devices (e.g. Qualcomm laptops)
+REM Adjust amd64 → arm64 if building for ARM devices
 copype amd64 C:\WinPE_amd64
 
-REM Mount the WinPE image
 Dism /Mount-Image /ImageFile:C:\WinPE_amd64\media\sources\boot.wim /Index:1 /MountDir:C:\WinPE_amd64\mount
 ```
 
-### Add required optional components
-
-These enable PowerShell, WMI, and HTTPS web requests inside WinPE:
-
 ```cmd
-REM Adjust path to match your ADK install location (usually Program Files (x86))
 set ADK=C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation Environment\amd64\WinPE_OCs
 
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-WMI.cab"
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-WMI_en-us.cab"
-
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-NetFX.cab"
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-NetFX_en-us.cab"
-
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-Scripting.cab"
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-Scripting_en-us.cab"
-
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-PowerShell.cab"
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-PowerShell_en-us.cab"
-
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-StorageWMI.cab"
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-StorageWMI_en-us.cab"
-
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-DismCmdlets.cab"
 Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-DismCmdlets_en-us.cab"
 ```
 
-The lang packs (`_en-us.cab`) are required immediately after each base package.
-
-### Copy scripts into the image
-
-Run from the root of this repo:
-
 ```cmd
 xcopy /E /I usb\Scripts C:\WinPE_amd64\mount\Scripts
-```
-
-Verify `Get-WindowsAutoPilotInfo.ps1` is present:
-
-```cmd
-dir C:\WinPE_amd64\mount\Scripts
-```
-
-### Replace startnet.cmd
-
-```cmd
 copy /Y usb\startnet.cmd C:\WinPE_amd64\mount\Windows\System32\startnet.cmd
-```
-
-### Unmount and commit
-
-```cmd
 Dism /Unmount-Image /MountDir:C:\WinPE_amd64\mount /Commit
-```
-
----
-
-## Step 3 — Write to USB
-
-Insert the USB drive. Find its drive letter in Disk Management (e.g. `E:`).
-
-> **Warning:** `MakeWinPEMedia` **erases the entire USB drive** without confirmation.
-> Double-check the drive letter before running.
-
-```cmd
 MakeWinPEMedia /UFD C:\WinPE_amd64 E:
 ```
 
-Alternatively, create a bootable ISO (useful for testing in a VM):
-
-```cmd
-MakeWinPEMedia /ISO C:\WinPE_amd64 C:\AutopilotEnrollment.iso
-```
-
 ---
 
-## Step 4 — Test in a VM before using on real hardware
+## Test in a VM before using on real hardware
 
-1. Boot a VM from the ISO (UTM on Mac: create a new VM, set boot disk to the ISO)
-2. WinPE boots, runs `wpeinit` to get DHCP, then launches `enroll.ps1`
-3. Enter a valid code from the admin portal
-4. Verify the device appears in Intune → Devices → Windows → Windows Enrollment → Devices
+1. Build an ISO: `powershell -ExecutionPolicy Bypass -File build.ps1 -Iso`
+2. Boot a VM from it (UTM on Mac: new VM → set boot disk to the ISO)
+3. WinPE boots, `wpeinit` gets DHCP, `enroll.ps1` launches
+4. Enter a valid code from the admin portal
+5. Verify the device appears in Intune → Devices → Windows → Windows Enrollment → Devices
 
 ---
 
