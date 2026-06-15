@@ -1,108 +1,65 @@
 # WinPE Enrollment USB — Build Guide
 
 Produces a bootable USB that prompts a technician for an enrollment code and
-registers the device with Microsoft Autopilot. No credentials are stored on the
-USB — the one-time code is the only authentication.
+registers the device with Microsoft Autopilot. No credentials are stored on
+the USB — the one-time code is the only authentication.
 
 ## Requirements
 
-- A **Windows machine** (or VM) with internet access
-- A USB drive **≥ 1 GB** (it will be fully erased)
-- The [Windows ADK for Windows 11](https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install) — "Deployment Tools" component only
-- The **WinPE add-on** for the ADK (separate download on the same page)
+- A **Windows machine** (or VM) with internet access (~1.2 GB for ADK)
+- A USB drive **>= 1 GB** (it will be fully erased)
 
-Install the ADK first, then the WinPE add-on. Both are free from Microsoft.
+That's it. The build script handles everything else automatically.
 
 ---
 
-## Automated build (recommended)
+## Build
 
-Insert the USB drive, then double-click **`build.bat`** in this folder.
-It will:
-1. Locate the Windows ADK automatically
+Insert the USB drive, then double-click **`build.bat`**.
+
+The script will:
+1. Detect the Windows ADK — if missing, offer to download and install it silently
 2. Download `Get-WindowsAutoPilotInfo.ps1` from PSGallery
-3. Build and patch the WinPE image (adds PowerShell, WMI, networking)
-4. Ask you to confirm which USB drive to erase
+3. Build and patch the WinPE image
+4. Ask which USB drive to erase and confirm
 5. Write the bootable image
 
-For ARM64 devices (Qualcomm laptops, ARM VMs):
+**For ARM64 devices** (Qualcomm laptops, ARM VMs):
 ```cmd
 build.bat arm64
 ```
 
-To specify the drive letter directly and skip the USB detection prompt:
+**To specify the drive letter** and skip the detection prompt:
 ```cmd
 build.bat amd64 E
 ```
 
-To create a bootable **ISO** instead of writing to USB (useful for VM testing):
-```cmd
-powershell -ExecutionPolicy Bypass -File build.ps1 -Iso
+**To build an ISO instead of writing to USB** (for VM testing):
+```powershell
+powershell -ExecutionPolicy Bypass -File build.ps1 -Iso -Arch arm64
 ```
 
-> The build takes roughly 3–5 minutes. The DISM optional-component steps are
-> the slow part — this is normal.
+> First run takes 10-15 minutes if ADK needs to be downloaded and installed.
+> Subsequent builds take ~3-5 minutes.
 
 ---
 
-## Manual build steps (reference / troubleshooting)
+## Test in a VM before cutting USBs
 
-These are what `build.ps1` does under the hood, in case you need to run them
-by hand.
-
-Open **Deployment and Imaging Tools Environment** as Administrator
-(Start → search "Deployment and Imaging Tools Environment").
-
-```cmd
-REM Adjust amd64 → arm64 if building for ARM devices
-copype amd64 C:\WinPE_amd64
-
-Dism /Mount-Image /ImageFile:C:\WinPE_amd64\media\sources\boot.wim /Index:1 /MountDir:C:\WinPE_amd64\mount
-```
-
-```cmd
-set ADK=C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation Environment\amd64\WinPE_OCs
-
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-WMI.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-WMI_en-us.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-NetFX.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-NetFX_en-us.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-Scripting.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-Scripting_en-us.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-PowerShell.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-PowerShell_en-us.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-StorageWMI.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-StorageWMI_en-us.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\WinPE-DismCmdlets.cab"
-Dism /Add-Package /Image:C:\WinPE_amd64\mount /PackagePath:"%ADK%\en-us\WinPE-DismCmdlets_en-us.cab"
-```
-
-```cmd
-xcopy /E /I usb\Scripts C:\WinPE_amd64\mount\Scripts
-copy /Y usb\startnet.cmd C:\WinPE_amd64\mount\Windows\System32\startnet.cmd
-Dism /Unmount-Image /MountDir:C:\WinPE_amd64\mount /Commit
-MakeWinPEMedia /UFD C:\WinPE_amd64 E:
-```
-
----
-
-## Test in a VM before using on real hardware
-
-1. Build an ISO: `powershell -ExecutionPolicy Bypass -File build.ps1 -Iso`
-2. Boot a VM from it (UTM on Mac: new VM → set boot disk to the ISO)
-3. WinPE boots, `wpeinit` gets DHCP, `enroll.ps1` launches
+1. Build an ISO (see above)
+2. Boot a VM from it (UTM on Mac: new VM > Other > select the ISO as boot disk)
+3. WinPE boots, `wpeinit` gets DHCP, the enrollment screen appears
 4. Enter a valid code from the admin portal
-5. Verify the device appears in Intune → Devices → Windows → Windows Enrollment → Devices
+5. Verify the device appears in Intune > Devices > Windows > Windows Enrollment > Devices
 
 ---
 
-## Pre-loading an enrollment code (optional, no typing needed)
+## Pre-loading a code (optional, zero typing)
 
-If you want a device to enroll with zero keyboard interaction, place a `code.txt`
-file in the **root of the USB drive** after writing the WinPE image:
+Drop a `code.txt` file in the root of the USB drive after writing it:
 
 ```
-E:\code.txt   (E: = your USB drive letter on a normal Windows machine)
+E:\code.txt
 ```
 
 Contents — just the 12-character code, nothing else:
@@ -111,25 +68,25 @@ Contents — just the 12-character code, nothing else:
 ABC1DEF2GH3J
 ```
 
-On boot, `enroll.ps1` scans all drives (excluding the WinPE ramdisk `X:`) for
-`code.txt`. If found and valid, it uses the code automatically and skips the
-prompt. If the file is missing, empty, or contains an invalid code it falls
-back to asking the technician to type one.
+The script reads it automatically on boot and skips the prompt. Falls back to
+asking for a code if the file is missing or invalid.
 
-One file, one USB, one device. Reuse the same USB for the next device by
-deleting the old `code.txt` and dropping a new one.
+To reuse the USB for a new device, delete the old `code.txt` and drop a new one.
+
+If you place `code.txt` next to `build.bat` before running, the build script
+copies it to the USB root automatically.
 
 ---
 
 ## BACKEND_URL
 
-The enrollment portal URL is hardcoded in `usb/Scripts/enroll.ps1`:
+The enrollment portal URL is hardcoded at the top of `Scripts/enroll.ps1`:
 
 ```powershell
 $BACKEND_URL = "https://ap.lamaquina.casa"
 ```
 
-Update this before building if the portal URL changes.
+Update this before building if the portal URL ever changes.
 
 ---
 
@@ -137,12 +94,13 @@ Update this before building if the portal URL changes.
 
 | Symptom | Likely cause |
 |---------|-------------|
-| `Invoke-RestMethod is not recognized` | WinPE-PowerShell or WinPE-NetFX not added |
-| `Get-WmiObject` fails | WinPE-WMI not added |
-| Hash collection produces empty CSV | WinPE-StorageWMI not added |
-| "Could not reach portal" at HTTP 0 | `wpeinit` didn't get DHCP; plug in ethernet or increase timeout in startnet.cmd |
-| HTTP 404 on valid code | Code already used or expired; generate a new code from the portal |
-| Script not found on boot | `xcopy` path was wrong; verify `dir X:\Scripts` from WinPE shell |
+| `Invoke-RestMethod is not recognized` | WinPE-PowerShell or WinPE-NetFX not added — rebuild |
+| `Get-WmiObject` fails | WinPE-WMI not added — rebuild |
+| Hash collection produces empty CSV | WinPE-StorageWMI not added — rebuild |
+| Network unreachable (HTTP 0) | `wpeinit` did not get DHCP; plug in ethernet or increase the timeout in `startnet.cmd` |
+| HTTP 404 on valid code | Code already used or expired; generate a new one from the portal |
+| Script not found on boot | Scripts were not copied into the image; rebuild |
+| ADK auto-install fails | Run `build.bat` again; or install manually from [learn.microsoft.com](https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install) |
 
-If the script crashes, WinPE drops to `cmd` (the `cmd /k` in startnet.cmd) so you
-can debug interactively.
+If the script crashes, WinPE drops to a `cmd` shell (the `cmd /k` in `startnet.cmd`)
+so you can debug interactively from the device.
